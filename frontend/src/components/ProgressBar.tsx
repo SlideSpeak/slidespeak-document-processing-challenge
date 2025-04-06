@@ -101,7 +101,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 
       {status === 'error' && (
         <div className="text-center text-xs text-red-500">
-          <p>There was an error processing your document. Please try again.</p>
+          <p>There was an error processing your document. Please bear with us while we retry.</p>
         </div>
       )}
     </div>

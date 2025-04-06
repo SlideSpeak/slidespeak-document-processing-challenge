@@ -6,6 +6,7 @@ import ErrorAlert from './components/ErrorAlert';
 import { uploadDocument, getDocumentStatus } from './services/api';
 import { useDocumentProgress } from './hooks/useWebSocket';
 import { DocumentStatus, AnalysisResult } from './types';
+import { ProgressUpdate } from './types/index';
 
 const App: React.FC = () => {
   const [documentId, setDocumentId] = useState<string | null>(null);
@@ -20,7 +21,12 @@ const App: React.FC = () => {
     updates,
     isConnected,
     error: wsError,
+    closeConnection
   } = useDocumentProgress(documentId);
+
+  // Attributes for polling circuit breaker. If the calls keep failing, set to error
+  const POLLING_MAX_ATTEMPTS = 3;
+  var CURRENT_POLLING_ATTEMPTS = 0;
 
   // Handle file upload
   const handleUpload = async (file: File) => {
@@ -28,12 +34,14 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      // TODO: Implement upload logic using the API service
-      // 1. Call uploadDocument from api.ts
-      // 2. Set the documentId from the response
-      // 3. Set initial document status
+      // Get document id and initial status
+      const updates = await uploadDocument(file);
+      // Set document id and initial status
+      setDocumentId(updates.documentId);
+      const status = JSON.parse(updates.status) as DocumentStatus;
+      setDocumentStatus(status);
     } catch (err) {
-      setError('Failed to upload document. Please try again.');
+      setError(`Failed to upload document. ${err}`);
     } finally {
       setIsUploading(false);
     }
@@ -42,18 +50,74 @@ const App: React.FC = () => {
   // Poll for document status when not connected to WebSocket
   useEffect(() => {
     if (!documentId || isConnected) return;
-
     const pollInterval = setInterval(async () => {
       try {
+        // Get document status
         const status = await getDocumentStatus(documentId);
-        setDocumentStatus(status);
+        if (!status.status || !status.progress){
+          // The response does not have a status or progress, consider it a failed call
+          // +1 and check circuit breaker
+          CURRENT_POLLING_ATTEMPTS++;
+          if (CURRENT_POLLING_ATTEMPTS >= POLLING_MAX_ATTEMPTS) {
+            // Max attempts tried, flip the circuit breaker
+            setError('Failure in retrieving document result. Please try again.');
+            setIsUploading(false);
+            setDocumentId(null);
+          } else {
+            // Not time to flip the circuit breaker but lets put it into error state
+            setDocumentStatus((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                status: 'error',
+                progress: prev.progress,
+              };
+            });
+          }
+        }
+        setDocumentStatus((prev) => {
+          if (!prev) return prev;
+          if (prev.timestamp > status.timestamp) {
+            // Prev is a more recent update, no need to update
+            return prev;
+          } else {
+            return {
+              ...prev,
+              timestamp: status.timestamp,
+              status: status.status,
+              progress: status.progress,
+            };
+          }
+        });
 
         // Stop polling if processing is complete
         if (status.status === 'complete' || status.status === 'error') {
+          if (!status.result){
+            setError('Failure in retrieving document result. Please try again.');
+            setIsUploading(false);
+            status.status = 'error';
+          }
           clearInterval(pollInterval);
         }
       } catch (err) {
-        console.error('Error polling document status:', err);
+        CURRENT_POLLING_ATTEMPTS++;
+        if (CURRENT_POLLING_ATTEMPTS >= POLLING_MAX_ATTEMPTS) {
+          setError('Failure in retrieving document status. Please try again.');
+          setIsUploading(false);
+          console.error('Error polling document status:', err);
+          setDocumentId(null);
+        } else {
+          setError('Having difficulty processing your document. Please give us a moment');
+          setDocumentStatus((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              status: 'error',
+              progress: prev.progress,
+            };
+          });
+        }
+
       }
     }, 2000);
 
@@ -63,22 +127,35 @@ const App: React.FC = () => {
   // Update status from WebSocket progress updates
   useEffect(() => {
     if (!updates || !documentStatus) return;
-
+    const progressUpdates = JSON.parse(updates) as ProgressUpdate;
     setDocumentStatus((prev) => {
       if (!prev) return prev;
-
+      if (prev.timestamp > progressUpdates.timestamp) {
+        // Prev is a more recent update, no need to update
+        return prev;
+      }
       return {
         ...prev,
-        status: updates.status,
-        progress: updates.progress,
+        timestamp: progressUpdates.timestamp,
+        status: progressUpdates.status,
+        progress: progressUpdates.progress > 0 ? progressUpdates.progress : prev.progress,
       };
     });
 
     // If processing is complete, fetch the full result
-    if (updates.status === 'complete') {
-      getDocumentStatus(updates.document_id)
-        .then((status) => setDocumentStatus(status))
+    if (progressUpdates.status === 'complete') {
+      getDocumentStatus(progressUpdates.document_id)
+        .then((status) => {
+          if (!status.result) {
+            setError('Failure in retrieving document result. Please try again.');
+            setIsUploading(false);
+            status.status = 'error';
+          }
+          setDocumentStatus(status);
+        })
         .catch((err) => console.error('Error fetching final result:', err));
+        // Close web socket connection
+        closeConnection();
     }
   }, [updates]);
 
@@ -138,10 +215,19 @@ const App: React.FC = () => {
                     status={documentStatus.status}
                     isConnected={isConnected}
                   />
+                  {documentStatus && documentStatus.status !== 'error' ? (
+                    <p className="text-sm text-gray-500 text-center mt-6">
+                      This may take a minute depending on document size
+                    </p>
+                  ) : 
+                  <div className="mt-6 text-center">
+                    <button
+                      onClick={handleReset}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                      Analyze Another Document
+                    </button>
+                </div>}
 
-                  <p className="text-sm text-gray-500 text-center mt-6">
-                    This may take a minute depending on document size
-                  </p>
                 </div>
               ) : null}
 

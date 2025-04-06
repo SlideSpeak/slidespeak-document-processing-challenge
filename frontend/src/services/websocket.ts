@@ -20,11 +20,6 @@ export const connectToDocumentProgress = (
   onOpen?: (event: Event) => void,
   onClose?: (event: CloseEvent) => void
 ): WebSocket => {
-  // TODO: Implement WebSocket connection
-  // The WebSocket endpoint should be at /ws/documents/{documentId}
-  // Make sure to handle message parsing and errors
-
-  // Example implementation structure:
   const socket = new WebSocket(`${WS_BASE_URL}/ws/documents/${documentId}`);
 
   socket.onopen = (event) => {

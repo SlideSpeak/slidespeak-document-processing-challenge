@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 
 from app.main import app
 from app.models.schemas import AnalysisResult, KeyInsight
+import json
 
 client = TestClient(app)
 
@@ -43,7 +44,7 @@ def test_upload_document(mock_process):
     # Check response
     assert response.status_code == 200
     assert "document_id" in response.json()
-    assert response.json()["status"] == "processing"
+    assert json.loads(response.json()['status'])['status'] == "processing"
 
 
 @patch("app.main.get_document_status")

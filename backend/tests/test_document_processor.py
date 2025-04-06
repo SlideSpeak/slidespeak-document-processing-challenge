@@ -49,7 +49,7 @@ async def test_process_document():
 
     # Process the document
     with patch(
-        "app.services.ai_service.extract_text_from_document",
+        "app.services.document_processor.extract_text_from_document",
         return_value="This is extracted text",
     ):
         result = await process_document(
@@ -86,7 +86,7 @@ async def test_process_document_error_handling():
 
     # Mock the AI service to raise an exception
     with patch(
-        "app.services.ai_service.extract_text_from_document",
+        "app.services.document_processor.extract_text_from_document",
         side_effect=Exception("Test error"),
     ):
         # Process a document

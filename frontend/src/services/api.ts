@@ -18,13 +18,28 @@ const api = axios.create({
  * @returns Document ID and initial status
  */
 export const uploadDocument = async (file: File): Promise<DocumentStatus> => {
-  // Create form data for file upload
-  const formData = new FormData();
-  formData.append('file', file);
+  try{
+    // Create form data for file upload
+    const formData = new FormData();
+    formData.append('file', file);
 
-  // TODO: Implement the request to upload a document
-  // The endpoint should be POST /api/documents
-  // Make sure to handle errors appropriately
+    const {data} = await axios.post(`${API_BASE_URL}/api/documents`, formData)
+    const { document_id, status } = data;
+
+    return {
+      documentId: document_id,
+      status
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error(`Axios error: ${error.message}`);
+      const errorMessage = error.response.data?.error
+      throw new Error(`${errorMessage}`);
+    } else {
+      console.error(`Unexpected error: ${error}`);
+      throw new Error('An unexpected error occurred while uploading the document.');
+    }
+  }
 };
 
 /**
@@ -36,9 +51,39 @@ export const uploadDocument = async (file: File): Promise<DocumentStatus> => {
 export const getDocumentStatus = async (
   documentId: string
 ): Promise<DocumentStatus> => {
-  // TODO: Implement the request to get document status
-  // The endpoint should be GET /api/documents/{documentId}
-  // Make sure to handle errors appropriately
+
+  try{
+    if (!documentId){
+      throw new Error("Document Id is required");
+    }
+
+    const {data} = await axios.get(`${API_BASE_URL}/api/documents/${documentId}`);
+    return data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        console.error(`Axios error: ${error.response.status} ${error.response.statusText}`);
+        if (error.response.status === 404) {
+          throw new Error(`Document with ID ${documentId} not found.`);
+        } else {
+          throw new Error(`Failed to fetch document status: ${error.response.statusText}`);
+        }
+      } else if (error.request) {
+        console.error('Axios error: No response received');
+        throw new Error('No response received from the server.');
+      } else {
+        console.error(`Axios error: ${error.message}`);
+        throw new Error(`Failed to fetch document status: ${error.message}`);
+      }
+    } else {
+      console.error(`Unexpected error: ${error}`);
+      throw new Error('An unexpected error occurred while fetching document status.');
+    }
+  }
+
+  
+  
+  
 };
 
 export default api;
