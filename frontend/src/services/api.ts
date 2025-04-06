@@ -33,7 +33,7 @@ export const uploadDocument = async (file: File): Promise<DocumentStatus> => {
   } catch (error) {
     if (axios.isAxiosError(error)) {
       console.error(`Axios error: ${error.message}`);
-      const errorMessage = error.response.data?.error
+      const errorMessage = error?.response?.data?.error ?? "We're unable to process your document right now. Please try again later."
       throw new Error(`${errorMessage}`);
     } else {
       console.error(`Unexpected error: ${error}`);
