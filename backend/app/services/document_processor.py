@@ -167,10 +167,10 @@ async def process_document(
         return result
 
     result: AnalysisResult = AnalysisResult(document_id=document_id,
-                            filename=filename,
-                            word_count=0,
-                            processing_time_seconds=0,
-                            key_insights=[])
+                                            filename=filename,
+                                            word_count=0,
+                                            processing_time_seconds=0,
+                                            key_insights=[])
     try:
         # Get file text
         file_text: str = await call_func_with_retries(extract_text_from_document, file_content=file_content)
@@ -198,7 +198,7 @@ async def process_document(
         result.processing_time_seconds = processing_time_seconds
         result.key_insights = key_insights
         result.sentiment_score = sum(chunk['sentiment_score'] for chunk in chunks_analysis) / len(chunks_analysis)
-        result.topics = set(itertools.chain(*[chunk['topics'] for chunk in chunks_analysis]))
+        result.topics = list(set(itertools.chain(*[chunk['topics'] for chunk in chunks_analysis])))
         result.completed_at = datetime.now()
 
         await progress_callback(get_document_update(document_id,
@@ -215,7 +215,6 @@ async def process_document(
         logger.exception(f'There was an exception {ex}')
         end_time = time.perf_counter()
         processing_time_seconds = end_time - start_time
-
 
         # Prepare and save error result
         result.word_count = 0

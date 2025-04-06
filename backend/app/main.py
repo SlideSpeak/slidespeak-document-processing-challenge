@@ -139,9 +139,8 @@ async def ws_document_status(websocket: WebSocket, document_id: str):
         # First check if there are status messages for this document id and send the status updates
         if document_id in unprocessed_status_updates:
             for message in unprocessed_status_updates.pop(document_id):
-                await ws_connection_manager.send_message(document_id, message.model_dump_json())
+                await websocket.send_json(message.model_dump_json())
         while True:
-            # Keep the WebSocket connection alive
             try:
                 await websocket.receive_text()
             except Exception:
